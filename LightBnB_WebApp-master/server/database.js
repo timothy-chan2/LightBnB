@@ -1,5 +1,15 @@
-const properties = require('./json/properties.json');
-const users = require('./json/users.json');
+/*const properties = require('./json/properties.json');*/
+/*const users = require('./json/users.json');*/
+
+// Connect to our database to web application
+const { Pool } = require('pg');
+
+const pool = new Pool({
+  user: 'vagrant',
+  password: '123',
+  host: 'localhost',
+  database: 'lightbnb'
+});
 
 /// Users
 
@@ -9,7 +19,24 @@ const users = require('./json/users.json');
  * @return {Promise<{}>} A promise to the user.
  */
 const getUserWithEmail = function(email) {
-  let user;
+  const queryString = `
+    SELECT *
+    FROM users
+    WHERE email = $1;
+  `;
+
+  const values =[email];
+
+  // Using a promise to query
+  return pool.query(queryString, values)
+    .then(res => {
+      const users = res.rows[0];
+      return users;
+    })
+    .catch(err => console.log('query error', err));
+  
+  // Old code
+  /*let user;
   for (const userId in users) {
     user = users[userId];
     if (user.email.toLowerCase() === email.toLowerCase()) {
@@ -18,7 +45,7 @@ const getUserWithEmail = function(email) {
       user = null;
     }
   }
-  return Promise.resolve(user);
+  return Promise.resolve(user);*/
 }
 exports.getUserWithEmail = getUserWithEmail;
 
@@ -28,7 +55,24 @@ exports.getUserWithEmail = getUserWithEmail;
  * @return {Promise<{}>} A promise to the user.
  */
 const getUserWithId = function(id) {
-  return Promise.resolve(users[id]);
+  const queryString = `
+    SELECT *
+    FROM users
+    WHERE id = $1;
+  `;
+
+  const values = [id];
+
+  // Using a promise to query
+  return pool.query(queryString, values)
+    .then(res => {
+      const users = res.rows[0];
+      return users;
+    })
+    .catch(err => console.log('query error', err));
+
+  // Old code
+  //return Promise.resolve(users[id]);
 }
 exports.getUserWithId = getUserWithId;
 
@@ -39,10 +83,27 @@ exports.getUserWithId = getUserWithId;
  * @return {Promise<{}>} A promise to the user.
  */
 const addUser =  function(user) {
-  const userId = Object.keys(users).length + 1;
+  const queryString = `
+  INSERT INTO users (
+    name, email, password) 
+    VALUES (
+    $1, $2, $3)
+    RETURNING *;
+  `;
+
+  // Potnetially malicious part of query (User command line input)
+  const values = [user.name, user.email, user.password];
+
+  // Using a promise to query
+  return pool.query(queryString, values)
+    .then(res => res.rows[0])
+    .catch(err => console.log('query error', err));
+
+  // Old code
+  /*const userId = Object.keys(users).length + 1;
   user.id = userId;
   users[userId] = user;
-  return Promise.resolve(user);
+  return Promise.resolve(user);*/
 }
 exports.addUser = addUser;
 
@@ -67,11 +128,28 @@ exports.getAllReservations = getAllReservations;
  * @return {Promise<[{}]>}  A promise to the properties.
  */
 const getAllProperties = function(options, limit = 10) {
-  const limitedProperties = {};
+  // Parameterized query to prevent SQL injection attacks
+  // Safe part of the query
+  const queryString = `
+    SELECT *
+    FROM properties
+    LIMIT $1;
+  `;
+
+  // Potnetially malicious part of query (User command line input)
+  const values = [`${limit}`];
+
+  // Using a promise to query
+  return pool.query(queryString, values)
+    .then(res => res.rows)
+    .catch(err => console.error('query error', err.stack));
+  
+  // Old code
+  /*const limitedProperties = {};
   for (let i = 1; i <= limit; i++) {
     limitedProperties[i] = properties[i];
   }
-  return Promise.resolve(limitedProperties);
+  return Promise.resolve(limitedProperties);*/
 }
 exports.getAllProperties = getAllProperties;
 
