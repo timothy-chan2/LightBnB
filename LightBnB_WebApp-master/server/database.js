@@ -91,7 +91,7 @@ const addUser =  function(user) {
     RETURNING *;
   `;
 
-  // Potnetially malicious part of query (User command line input)
+  // Potnetially malicious part of query (User input)
   const values = [user.name, user.email, user.password];
 
   // Using a promise to query
@@ -115,7 +115,27 @@ exports.addUser = addUser;
  * @return {Promise<[{}]>} A promise to the reservations.
  */
 const getAllReservations = function(guest_id, limit = 10) {
-  return getAllProperties(null, 2);
+  const queryString = `
+  SELECT reservations.*, properties.*, AVG(property_reviews.rating) AS average_rating
+    FROM property_reviews
+    JOIN reservations ON reservations.id = reservation_id
+    JOIN properties ON properties.id = reservations.property_id
+    WHERE reservations.guest_id = $1 AND end_date < now()::date
+    GROUP BY reservations.id, properties.id
+    ORDER BY start_date
+    LIMIT $2;
+  `;
+
+  // Potnetially malicious part of query (User input)
+  const values = [guest_id, limit];
+
+  // Using a promise to query
+  return pool.query(queryString, values)
+    .then(res => res.rows)
+    .catch(err => console.log('query error', err));
+
+  // Old code
+  //return getAllProperties(null, 2);
 }
 exports.getAllReservations = getAllReservations;
 
@@ -136,8 +156,8 @@ const getAllProperties = function(options, limit = 10) {
     LIMIT $1;
   `;
 
-  // Potnetially malicious part of query (User command line input)
-  const values = [`${limit}`];
+  // Potnetially malicious part of query (User input)
+  const values = [limit];
 
   // Using a promise to query
   return pool.query(queryString, values)
