@@ -149,15 +149,59 @@ exports.getAllReservations = getAllReservations;
  */
 const getAllProperties = function(options, limit = 10) {
   // Parameterized query to prevent SQL injection attacks
+  // Potnetially malicious part of query (User input to be pushed in)
+  const values = [];
+  
   // Safe part of the query
-  const queryString = `
-    SELECT *
+  let queryString = `
+  SELECT properties.*, AVG(property_reviews.rating) AS average_rating
     FROM properties
-    LIMIT $1;
+    JOIN property_reviews ON properties.id = property_id
   `;
 
-  // Potnetially malicious part of query (User input)
-  const values = [limit];
+  // If city is specified
+  if (options.city) {
+    values.push(`%${options.city}%`);
+    queryString += `WHERE city LIKE $${values.length} `;
+  }
+
+  // If owner_id is specified
+  if (options.owner_id) {
+    values.push(options.owner_id);
+    if (values.length === 0) {
+      queryString += `WHERE owner_id = $${values.length} `;
+    } else {
+      queryString += `AND owner_id = $${values.length} `;
+    }
+  }
+
+  // If min and max price per night specified
+  if (options.minimum_price_per_night && options.maximum_price_per_night) {
+    values.push(options.minimum_price_per_night);
+    values.push(options.maximum_price_per_night);
+    if (values.length === 0) {
+      queryString += `WHERE cost_per_night >= $${values.length - 1} * 100 AND cost_per_night <= $${values.length} * 100 `;
+    } else {
+      queryString += `AND cost_per_night >= $${values.length - 1} * 100 AND cost_per_night <= $${values.length} * 100 `;
+    }
+  }
+
+  queryString += `
+    GROUP BY properties.id
+  `;
+
+  // If minimum rating is specified
+  if (options.minimum_rating) {
+    values.push(options.minimum_rating);
+    queryString += `HAVING AVG(property_reviews.rating) >= $${values.length} `;
+  }
+
+  // For specified limit
+  values.push(limit);
+  queryString += `
+    ORDER BY cost_per_night
+    LIMIT $${values.length};
+  `;
 
   // Using a promise to query
   return pool.query(queryString, values)
